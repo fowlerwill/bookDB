@@ -23,11 +23,13 @@ type Page struct {
 	Body  []byte
 }
 
+// Saves a page to a txt - must convert to save to db
 func (p *Page) save() error {
 	filename := p.Title + ".txt"
 	return ioutil.WriteFile(filename, p.Body, 0600)
 }
 
+// Loads a page from an existing .txt - must be converted to load from db
 func loadPage(title string) (*Page, error) {
 	filename := title + ".txt"
 	body, err := ioutil.ReadFile(filename)
@@ -35,6 +37,20 @@ func loadPage(title string) (*Page, error) {
 		return nil, err
 	}
 	return &Page{Title: title, Body: body}, nil
+}
+
+// = Begin Handler functions for the routes
+// ---------------------------------------------
+
+func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		m := validPath.FindStringSubmatch(r.URL.Path)
+		if m == nil {
+			http.NotFound(w, r)
+			return
+		}
+		fn(w, r, m[2])
+	}
 }
 
 func viewHandler(w http.ResponseWriter, r *http.Request, title string) {
@@ -65,6 +81,7 @@ func saveHandler(w http.ResponseWriter, r *http.Request, title string) {
 	http.Redirect(w, r, "/view/"+title, http.StatusFound)
 }
 
+// prevents code injection by parsing ONLY html & escaped Go
 var templates = template.Must(template.ParseFiles("src/github.com/fowlerwill/bookDB/edit.html", "src/github.com/fowlerwill/bookDB/view.html"))
 
 func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
@@ -74,19 +91,10 @@ func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
 	}
 }
 
+// checks for valid URLs
 var validPath = regexp.MustCompile("^/(edit|save|view)/([a-zA-Z0-9]+)$")
 
-func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		m := validPath.FindStringSubmatch(r.URL.Path)
-		if m == nil {
-			http.NotFound(w, r)
-			return
-		}
-		fn(w, r, m[2])
-	}
-}
-
+// A main method to run this gaffer.
 func main() {
 	// initialize the DbMap
 	dbmap := initDb()
@@ -97,6 +105,8 @@ func main() {
 	http.HandleFunc("/edit/", makeHandler(editHandler))
 	http.HandleFunc("/save/", makeHandler(saveHandler))
 
+	// = Begin database demo stuff
+	// ---------------------------------------------
 	// delete any existing rows
 	err := dbmap.TruncateTables()
 	checkErr(err, "TruncateTables failed")
@@ -154,7 +164,9 @@ func main() {
 
 	log.Println("Done!")
 
-	// This bit seems to start the server?
+	// = end database demo stuff !
+
+	// This bit seems to start the server
 	if *addr {
 		l, err := net.Listen("tcp", "127.0.0.1:0")
 		if err != nil {
@@ -207,6 +219,8 @@ func checkErr(err error, msg string) {
 	}
 }
 
+// = Book database specific structs
+// ------------------------------------------------
 type Book struct {
 	Id           int64 `db:"book_id"`
 	name         string
