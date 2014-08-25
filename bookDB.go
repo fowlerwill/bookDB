@@ -60,6 +60,9 @@ func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.Handl
 /**
  * A function to handle a loop to run through every book in
  * the database.
+ *
+ * Currently searches for .txt files - should be changed
+ * 	to use the database.
  */
 func loopHandler(w http.ResponseWriter, r *http.Request) {
 
@@ -137,12 +140,18 @@ func main() {
 	checkErr(err, "TruncateTables failed")
 
 	// create two posts
+	g := newGenre(1, "Fantasy")
+	log.Println("%v", g)
 	p1 := newPost("Go 1.1 released!", "Lorem ipsum lorem ipsum")
 	p2 := newPost("Go 1.2 released!", "Lorem ipsum lorem ipsum")
 
 	// insert rows - auto increment PKs will be set properly after the insert
-	err = dbmap.Insert(&p1, &p2)
+	err = dbmap.Insert(&p1, &p2, &g)
 	checkErr(err, "Insert failed")
+
+	count1, err1 := dbmap.SelectInt("select count(*) from genres")
+	checkErr(err1, "select count(*) failed")
+	log.Println("Rows after inserting into genres:", count1)
 
 	// use convenience SelectInt
 	count, err := dbmap.SelectInt("select count(*) from posts")
@@ -229,6 +238,12 @@ func initDb() *gorp.DbMap {
 	// add a table, setting the table name to 'posts' and
 	// specifying that the Id property is an auto incrementing PK
 	dbmap.AddTableWithName(Post{}, "posts").SetKeys(true, "Id")
+	dbmap.AddTableWithName(Book{}, "books").SetKeys(true, "Id")
+	dbmap.AddTableWithName(Author{}, "authors").SetKeys(true, "Id")
+	dbmap.AddTableWithName(Genre{}, "genres").SetKeys(true, "Id")
+	dbmap.AddTableWithName(Publisher{}, "publishers").SetKeys(true, "Id")
+	dbmap.AddTableWithName(Series{}, "series").SetKeys(true, "Id")
+	dbmap.AddTableWithName(Language{}, "languages").SetKeys(true, "Id")
 
 	// create the table. in a production system you'd generally
 	// use a migration tool, or create the tables via scripts
@@ -268,8 +283,15 @@ type Author struct {
 }
 
 type Genre struct {
-	Id   int64 `db:"genre_id"`
-	name string
+	Id   int `db:"genre_id"`
+	Name string
+}
+
+func newGenre(id int, aName string) Genre {
+	return Genre{
+		Id:   id,
+		Name: aName,
+	}
 }
 
 type Publisher struct {
