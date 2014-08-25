@@ -10,7 +10,9 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -31,6 +33,8 @@ func (p *Page) save() error {
 
 // Loads a page from an existing .txt - must be converted to load from db
 func loadPage(title string) (*Page, error) {
+
+	//Right here - make this query the DB for a book.
 	filename := title + ".txt"
 	body, err := ioutil.ReadFile(filename)
 	if err != nil {
@@ -50,6 +54,26 @@ func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.Handl
 			return
 		}
 		fn(w, r, m[2])
+	}
+}
+
+/**
+ * A function to handle a loop to run through every book in
+ * the database.
+ */
+func loopHandler(w http.ResponseWriter, r *http.Request) {
+
+	matches, err := filepath.Glob("*.txt")
+	if err != nil {
+		return
+	}
+	for _, s := range matches {
+		s = strings.Replace(s, ".txt", "", 1)
+		p, err := loadPage(s)
+
+		if err == nil {
+			renderTemplate(w, "view", p)
+		}
 	}
 }
 
@@ -82,7 +106,7 @@ func saveHandler(w http.ResponseWriter, r *http.Request, title string) {
 }
 
 // prevents code injection by parsing ONLY html & escaped Go
-var templates = template.Must(template.ParseFiles("src/github.com/fowlerwill/bookDB/edit.html", "src/github.com/fowlerwill/bookDB/view.html"))
+var templates = template.Must(template.ParseFiles("edit.html", "view.html"))
 
 func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
 	err := templates.ExecuteTemplate(w, tmpl+".html", p)
@@ -104,6 +128,7 @@ func main() {
 	http.HandleFunc("/view/", makeHandler(viewHandler))
 	http.HandleFunc("/edit/", makeHandler(editHandler))
 	http.HandleFunc("/save/", makeHandler(saveHandler))
+	http.HandleFunc("/", loopHandler)
 
 	// = Begin database demo stuff
 	// ---------------------------------------------
