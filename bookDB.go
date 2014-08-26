@@ -66,6 +66,15 @@ func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.Handl
  */
 func loopHandler(w http.ResponseWriter, r *http.Request) {
 
+	// fetch all rows
+	var books []Book
+	_, err := dbmap.Select(&books, "select * from books order by book_id")
+	checkErr(err, "Select failed")
+	log.Println("All rows:")
+	for x, p := range books {
+		log.Printf("    %d: %v\n", x, p)
+	}
+
 	matches, err := filepath.Glob("*.txt")
 	if err != nil {
 		return
@@ -78,6 +87,11 @@ func loopHandler(w http.ResponseWriter, r *http.Request) {
 			renderTemplate(w, "view", p)
 		}
 	}
+}
+
+func bookViewHandler(w http.ResponseWriter, r *http.Request, theBook Book) {
+	//p, err := loadBook(title)
+	return
 }
 
 func viewHandler(w http.ResponseWriter, r *http.Request, title string) {
@@ -121,10 +135,11 @@ func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
 // checks for valid URLs
 var validPath = regexp.MustCompile("^/(edit|save|view)/([a-zA-Z0-9]+)$")
 
+// initialize the DbMap
+var dbmap = initDb()
+
 // A main method to run this gaffer.
 func main() {
-	// initialize the DbMap
-	dbmap := initDb()
 	defer dbmap.Db.Close()
 
 	// Routes!
@@ -141,12 +156,12 @@ func main() {
 
 	// create two posts
 	g := newGenre(1, "Fantasy")
-	log.Println("%v", g)
+	b := newBook(1, "Game of Thrones", 1, "12345", 10000, 1, true, 1, 1, 1, 1)
 	p1 := newPost("Go 1.1 released!", "Lorem ipsum lorem ipsum")
 	p2 := newPost("Go 1.2 released!", "Lorem ipsum lorem ipsum")
 
 	// insert rows - auto increment PKs will be set properly after the insert
-	err = dbmap.Insert(&p1, &p2, &g)
+	err = dbmap.Insert(&p1, &p2, &g, &b)
 	checkErr(err, "Insert failed")
 
 	count1, err1 := dbmap.SelectInt("select count(*) from genres")
@@ -169,9 +184,9 @@ func main() {
 	// Postgres users should use $1 instead of ? placeholders
 	// See 'Known Issues' below
 	//
-	err = dbmap.SelectOne(&p2, "select * from posts where post_id=?", p2.Id)
+	err = dbmap.SelectOne(&g, "select * from genres where genre_id=?", g.Id)
 	checkErr(err, "SelectOne failed")
-	log.Println("p2 row:", p2)
+	log.Println("p2 row:", g)
 
 	// fetch all rows
 	var posts []Post
@@ -262,17 +277,33 @@ func checkErr(err error, msg string) {
 // = Book database specific structs
 // ------------------------------------------------
 type Book struct {
-	Id           int64 `db:"book_id"`
-	name         string
-	author_id    int64
-	isbn         string
-	pubdate      int64
-	edition      int64
-	isfiction    bool
-	genre_id     int64
-	publisher_id int64
-	series_id    int64
-	language_id  int64
+	Id           int `db:"book_id"`
+	Name         string
+	Author_id    int
+	Isbn         string
+	Pubdate      int
+	Edition      int
+	Isfiction    bool
+	Genre_id     int
+	Publisher_id int
+	Series_id    int
+	Language_id  int
+}
+
+func newBook(id int, aName string, authorId int, isbn string, pubdate int, edition int, isFiction bool, genreId int, publisherId int, seriesId int, languageId int) Book {
+	return Book{
+		Id:           id,
+		Name:         aName,
+		Author_id:    authorId,
+		Isbn:         isbn,
+		Pubdate:      pubdate,
+		Edition:      edition,
+		Isfiction:    isFiction,
+		Genre_id:     genreId,
+		Publisher_id: publisherId,
+		Series_id:    seriesId,
+		Language_id:  languageId,
+	}
 }
 
 type Author struct {
